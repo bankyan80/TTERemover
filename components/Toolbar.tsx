@@ -46,29 +46,30 @@ export default function Toolbar({
         <div className="text-right">
           <p className="text-sm font-semibold truncate max-w-[200px]">{fileName}</p>
           <p className="text-xs" style={{ color: "var(--color-text-secondary)" }}>
-            {totalPages} halaman
+            Page {currentPageLabel(totalPages, areas)} • {totalPages} halaman
           </p>
         </div>
       </div>
 
-      {/* Actions */}
+      {/* Action buttons */}
       <div className="flex flex-wrap gap-2">
         <button
-          onClick={onRedetect}
-          className="rounded-lg border px-3 py-2 text-sm font-medium transition hover:bg-black/5"
-          style={{ borderColor: "var(--color-border)" }}
-        >
-          Deteksi Ulang
-        </button>
-        <button
-          onClick={isSelectingManual ? undefined : onStartManualSelect}
-          className="rounded-lg border px-3 py-2 text-sm font-medium transition hover:bg-black/5"
+          onClick={onStartManualSelect}
+          disabled={isSelectingManual}
+          className="rounded-lg border px-3 py-2 text-sm font-medium transition hover:bg-black/5 disabled:opacity-50"
           style={{
             borderColor: isSelectingManual ? "var(--color-primary)" : "var(--color-border)",
             color: isSelectingManual ? "var(--color-primary)" : undefined,
           }}
         >
-          + Pilih Area
+          + Select Area
+        </button>
+        <button
+          onClick={onRedetect}
+          className="rounded-lg border px-3 py-2 text-sm font-medium transition hover:bg-black/5"
+          style={{ borderColor: "var(--color-border)" }}
+        >
+          Detect Lagi
         </button>
         <button
           onClick={onResetSelection}
@@ -83,7 +84,7 @@ export default function Toolbar({
       {areas.length > 0 && (
         <div className="flex flex-col gap-1">
           <p className="text-xs font-semibold uppercase tracking-wider" style={{ color: "var(--color-text-secondary)" }}>
-            Area TTE ({areas.length})
+            Area ({areas.length})
           </p>
           {areas.map((area) => (
             <div
@@ -104,7 +105,7 @@ export default function Toolbar({
                 />
                 <div className="flex flex-col">
                   <span>
-                    Halaman {area.page} — {area.source === "automatic" ? "Otomatis" : "Manual"}
+                    Page {area.page} — {area.source === "automatic" ? "Auto" : "Manual"}
                   </span>
                   {area.confidence != null && (
                     <span className="text-[10px]" style={{ color: "var(--color-success)" }}>
@@ -134,10 +135,16 @@ export default function Toolbar({
             className="w-full rounded-xl px-4 py-3 text-sm font-bold text-white transition hover:opacity-90"
             style={{ background: "var(--color-primary)" }}
           >
-            Hapus TTE ({selectedCount})
+            Remove TTE ({selectedCount})
           </button>
         </div>
       )}
     </div>
   );
+}
+
+function currentPageLabel(totalPages: number, areas: RemovalArea[]): string {
+  const pages = [...new Set(areas.map((a) => a.page))];
+  if (pages.length === 0) return `Page 1`;
+  return pages.map((p) => `Page ${p}`).join(", ");
 }

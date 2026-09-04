@@ -5,7 +5,7 @@ import { RemovalArea, AppState, DetectionCandidate } from "@/lib/types";
 import UploadZone from "@/components/UploadZone";
 import PdfViewer from "@/components/PdfViewer";
 import Toolbar from "@/components/Toolbar";
-import ProcessingModal from "@/components/ProcessingModal";
+import ProcessingStatus from "@/components/ProcessingStatus";
 import ResultPanel from "@/components/ResultPanel";
 import BeforeAfterCompare from "@/components/BeforeAfterCompare";
 
@@ -20,11 +20,13 @@ export default function Home() {
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [resultBlobUrl, setResultBlobUrl] = useState<string | null>(null);
   const [resultFileName, setResultFileName] = useState("");
+  const [statusMessage, setStatusMessage] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
   const detectionRanRef = useRef(false);
 
   const handleFileSelect = useCallback(async (file: File) => {
     setAppState("uploading");
+    setStatusMessage("UPLOADING");
     setFileName(file.name);
 
     try {
@@ -40,6 +42,7 @@ export default function Home() {
 
       setAppState("ready");
       setCurrentPage(1);
+      setStatusMessage("");
     } catch {
       setErrorMessage("PDF tidak dapat dibaca. Silakan gunakan file PDF lain.");
       setAppState("error");
@@ -49,14 +52,9 @@ export default function Home() {
   const detectSignatures = useCallback(async () => {
     if (!pdfData) return;
     setAppState("analyzing");
+    setStatusMessage("ANALYZING DOCUMENT");
 
     try {
-      const pdfjsLib = await import("pdfjs-dist");
-      pdfjsLib.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
-      const loadingTask = pdfjsLib.getDocument({ data: new Uint8Array(pdfData) });
-      const pdf = await loadingTask.promise;
-      pdf.destroy();
-
       const formData = new FormData();
       const blob = new Blob([pdfData], { type: "application/pdf" });
       formData.append("pdf", blob, fileName || "document.pdf");
@@ -68,7 +66,7 @@ export default function Home() {
         if (!res.ok) throw new Error(`Detection API returned ${res.status}`);
         data = await res.json();
       } catch {
-        data = { success: true, pages: pdf.numPages, candidates: [] };
+        data = { success: true, pages: totalPages || 0, candidates: [] };
       }
 
       if (!data.success) {
@@ -88,12 +86,14 @@ export default function Home() {
       }));
 
       setAreas(detected);
+      setStatusMessage("");
       setAppState("ready");
     } catch (err) {
       console.error("Detection error", err);
+      setStatusMessage("");
       setAppState("ready");
     }
-  }, [pdfData, fileName]);
+  }, [pdfData, fileName, totalPages]);
 
   useEffect(() => {
     if (appState === "ready" && pdfData && !detectionRanRef.current && areas.length === 0) {
@@ -111,6 +111,7 @@ export default function Home() {
   const handleProcess = async (areasToProcess: RemovalArea[]) => {
     if (!pdfData) return;
     setAppState("processing");
+    setStatusMessage("REMOVING QR / TTE");
 
     try {
       const formData = new FormData();
@@ -151,11 +152,13 @@ export default function Home() {
       setResultBlobUrl(url);
       const baseName = fileName.replace(/\.pdf$/i, "");
       setResultFileName(`${baseName}_TTE_dihapus.pdf`);
+      setStatusMessage("COMPLETED");
       setAppState("success");
     } catch (err: unknown) {
       console.error("Process error", err);
       const msg = err instanceof Error ? err.message : "Terjadi kesalahan saat memproses PDF.";
       setErrorMessage(`${msg} Silakan coba lagi.`);
+      setStatusMessage("");
       setAppState("error");
     }
   };
@@ -184,6 +187,7 @@ export default function Home() {
     setResultBlobUrl(null);
     setResultFileName("");
     setErrorMessage("");
+    setStatusMessage("");
     setAppState("empty");
   };
 
@@ -216,6 +220,11 @@ export default function Home() {
 
   const selectedCount = areas.filter((a) => a.selected).length;
 
+  const showBusy =
+    appState === "uploading" ||
+    appState === "analyzing" ||
+    appState === "processing";
+
   return (
     <div className="min-h-screen" style={{ background: "var(--color-bg)" }}>
       {/* Header */}
@@ -233,9 +242,9 @@ export default function Home() {
               ✓
             </div>
             <div>
-              <p className="text-sm font-bold leading-tight">TTE Remover</p>
+              <p className="text-sm font-bold leading-tight">Hapus TTE PDF</p>
               <p className="text-[10px]" style={{ color: "var(--color-text-secondary)" }}>
-                PDF Signature Cleaner
+                QR / Tanda Tangan Elektronik Remover
               </p>
             </div>
           </div>
@@ -247,23 +256,23 @@ export default function Home() {
             }}
             role="status"
           >
-            🔒 NO STORAGE
+            🔒 No Storage
           </div>
         </div>
       </header>
 
       <main className="mx-auto max-w-6xl px-4 py-8">
         {/* Empty / Upload */}
-        {(appState === "empty" || appState === "uploading") && (
+        {appState === "empty" && (
           <div className="mx-auto flex max-w-lg flex-col items-center gap-8 py-16">
             <div className="text-center animate-fade-in">
               <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">
                 Hapus TTE dari PDF
               </h1>
               <p className="mt-3 text-base" style={{ color: "var(--color-text-secondary)" }}>
-                Hapus area tanda tangan elektronik
+                Upload dokumen PDF, deteksi QR / Tanda Tangan Elektronik,
                 <br />
-                dengan cepat dan mudah.
+                lalu hapus dengan mudah.
               </p>
             </div>
             <UploadZone onFileSelect={handleFileSelect} />
@@ -273,36 +282,14 @@ export default function Home() {
           </div>
         )}
 
-        {/* Analyzing */}
-        {appState === "analyzing" && (
-          <div className="flex flex-col items-center gap-6 py-20">
-            <div className="relative">
-              <div
-                className="h-16 w-16 animate-spin rounded-full"
-                style={{
-                  border: "3px solid var(--color-border)",
-                  borderTopColor: "var(--color-primary)",
-                }}
-              />
-              <div
-                className="absolute inset-0 flex items-center justify-center text-lg font-bold"
-                style={{ color: "var(--color-primary)" }}
-              >
-                ✓
-              </div>
-            </div>
-            <p className="text-lg font-semibold">Menganalisis PDF...</p>
-            <p className="text-sm" style={{ color: "var(--color-text-secondary)" }}>
-              Mendeteksi area TTE
-            </p>
-          </div>
-        )}
+        {/* Busy (uploading / analyzing / processing) */}
+        {showBusy && <ProcessingStatus message={statusMessage} />}
 
-        {/* Ready / Processing */}
-        {(appState === "ready" || appState === "processing") && pdfData && (
+        {/* Ready */}
+        {appState === "ready" && pdfData && (
           <div className="flex flex-col gap-4">
             {/* Status banner */}
-            {areas.length === 0 && appState === "ready" && (
+            {areas.length === 0 && (
               <div
                 className="animate-fade-in rounded-xl p-4 text-center text-sm"
                 style={{
@@ -311,12 +298,13 @@ export default function Home() {
                   border: "1px solid color-mix(in srgb, var(--color-warning) 20%, transparent)",
                 }}
               >
-                Tidak ditemukan TTE otomatis. Gunakan &quot;+ Pilih Area&quot; untuk menentukan
-                area yang ingin dihapus secara manual.
+                No QR/TTE terdeteksi secara otomatis.
+                <br />
+                Gunakan &quot;+ Select Area&quot; untuk memilih area QR/TTE yang ingin dihapus.
               </div>
             )}
 
-            {areas.length > 0 && appState === "ready" && (
+            {areas.length > 0 && (
               <div
                 className="animate-fade-in rounded-xl p-4"
                 style={{
@@ -333,12 +321,12 @@ export default function Home() {
                   </div>
                   <div className="flex-1">
                     <p className="text-sm font-semibold" style={{ color: "var(--color-success)" }}>
-                      TTE terdeteksi
+                      QR / TTE terdeteksi
                     </p>
                     <p className="mt-1 text-xs" style={{ color: "var(--color-text-secondary)" }}>
-                      {areas.length} area ditemukan pada{" "}
+                      Ditemukan pada{" "}
                       {[...new Set(areas.map((a) => a.page))].sort((a, b) => a - b).map((p) => `halaman ${p}`).join(", ")}.
-                      {selectedCount > 0 && ` (${selectedCount} dipilih)`}
+                      Tinjau area lalu hapus.
                     </p>
                   </div>
                 </div>
@@ -376,9 +364,6 @@ export default function Home() {
             </div>
           </div>
         )}
-
-        {/* Processing */}
-        <ProcessingModal isVisible={appState === "processing"} />
 
         {/* Error */}
         {appState === "error" && (
@@ -466,9 +451,9 @@ export default function Home() {
             }}
             onClick={(e) => e.stopPropagation()}
           >
-            <h3 className="text-lg font-semibold">Hapus TTE Terpilih?</h3>
+            <h3 className="text-lg font-semibold">Hapus QR / TTE?</h3>
             <p className="mt-2 text-sm" style={{ color: "var(--color-text-secondary)" }}>
-              {selectedCount} area TTE yang dipilih akan dihapus dari PDF hasil. PDF asli tidak akan diubah.
+              {selectedCount} area QR/TTE yang dipilih akan dihapus dari PDF hasil. PDF asli tidak akan diubah.
             </p>
             <div className="mt-6 flex gap-3">
               <button
@@ -476,14 +461,14 @@ export default function Home() {
                 className="flex-1 rounded-xl px-4 py-2.5 text-sm font-medium transition hover:bg-black/5"
                 style={{ border: "1px solid var(--color-border)" }}
               >
-                Batal
+                Cancel
               </button>
               <button
                 onClick={confirmRemove}
                 className="flex-1 rounded-xl px-4 py-2.5 text-sm font-bold text-white transition hover:opacity-90"
                 style={{ background: "var(--color-primary)" }}
               >
-                Hapus TTE
+                Remove
               </button>
             </div>
           </div>
