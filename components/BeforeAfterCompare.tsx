@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useRef, useState, useCallback } from "react";
-import { setupPdfJs } from "@/lib/pdf";
+import { setupPdfJs, copyPdfData } from "@/lib/pdf";
 
 interface BeforeAfterCompareProps {
   originalData: ArrayBuffer;
@@ -35,7 +35,7 @@ export default function BeforeAfterCompare({
         data = originalData;
       }
 
-      const loadingTask = pdfjsLib.getDocument({ data: new Uint8Array(data) });
+      const loadingTask = pdfjsLib.getDocument({ data: copyPdfData(data) });
       const pdf = await loadingTask.promise;
       const page = await pdf.getPage(currentPage);
 

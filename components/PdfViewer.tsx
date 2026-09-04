@@ -2,7 +2,7 @@
 
 import React, { useEffect, useRef, useState, useCallback } from "react";
 import { PdfPageInfo, RemovalArea } from "@/lib/types";
-import { setupPdfJs } from "@/lib/pdf";
+import { setupPdfJs, copyPdfData } from "@/lib/pdf";
 import DetectionOverlay from "./DetectionOverlay";
 import ManualSelection from "./ManualSelection";
 
@@ -41,7 +41,7 @@ export default function PdfViewer({
     setRenderError("");
     try {
       const pdfjsLib = await setupPdfJs();
-      const loadingTask = pdfjsLib.getDocument({ data: new Uint8Array(pdfData) });
+      const loadingTask = pdfjsLib.getDocument({ data: copyPdfData(pdfData) });
       const pdf = await loadingTask.promise;
       const page = await pdf.getPage(currentPage);
       const vp1 = page.getViewport({ scale: 1 });
@@ -69,7 +69,8 @@ export default function PdfViewer({
       pdf.destroy();
     } catch (err) {
       console.error("Render error", err);
-      setRenderError("Gagal menampilkan halaman ini.");
+      const msg = err instanceof Error ? err.message : String(err);
+      setRenderError("Gagal menampilkan halaman ini: " + msg);
       setLoading(false);
     }
   }, [pdfData, currentPage, scale]);
