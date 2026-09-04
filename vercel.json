@@ -2,11 +2,6 @@
   "buildCommand": "npm run build",
   "outputDirectory": ".next",
   "framework": "nextjs",
-  "functions": {
-    "api/remove-tte.py": {
-      "runtime": "@vercel/python@5"
-    }
-  },
   "routes": [
     {
       "src": "/api/remove-tte",
