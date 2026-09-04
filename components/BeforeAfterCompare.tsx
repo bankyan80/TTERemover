@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useRef, useState, useCallback } from "react";
+import { setupPdfJs } from "@/lib/pdf";
 
 interface BeforeAfterCompareProps {
   originalData: ArrayBuffer;
@@ -24,8 +25,7 @@ export default function BeforeAfterCompare({
     if (!canvas) return;
 
     try {
-      const pdfjsLib = await import("pdfjs-dist");
-      pdfjsLib.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
+      const pdfjsLib = await setupPdfJs();
 
       let data: ArrayBuffer;
       if (showAfter) {

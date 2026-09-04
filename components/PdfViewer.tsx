@@ -2,6 +2,7 @@
 
 import React, { useEffect, useRef, useState, useCallback } from "react";
 import { PdfPageInfo, RemovalArea } from "@/lib/types";
+import { setupPdfJs } from "@/lib/pdf";
 import DetectionOverlay from "./DetectionOverlay";
 import ManualSelection from "./ManualSelection";
 
@@ -32,13 +33,14 @@ export default function PdfViewer({
   const [pageInfo, setPageInfo] = useState<PdfPageInfo | null>(null);
   const [scale, setScale] = useState(1.2);
   const [loading, setLoading] = useState(true);
+  const [renderError, setRenderError] = useState("");
   const [canvasDisplayWidth, setCanvasDisplayWidth] = useState(0);
 
   const renderPage = useCallback(async () => {
     setLoading(true);
+    setRenderError("");
     try {
-      const pdfjsLib = await import("pdfjs-dist");
-      pdfjsLib.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
+      const pdfjsLib = await setupPdfJs();
       const loadingTask = pdfjsLib.getDocument({ data: new Uint8Array(pdfData) });
       const pdf = await loadingTask.promise;
       const page = await pdf.getPage(currentPage);
@@ -67,6 +69,7 @@ export default function PdfViewer({
       pdf.destroy();
     } catch (err) {
       console.error("Render error", err);
+      setRenderError("Gagal menampilkan halaman ini.");
       setLoading(false);
     }
   }, [pdfData, currentPage, scale]);
@@ -173,10 +176,18 @@ export default function PdfViewer({
           minHeight: "400px",
         }}
       >
-        {loading && (
+        {loading && !renderError && (
           <div className="absolute inset-0 flex items-center justify-center z-10">
             <div className="animate-pulse text-sm" style={{ color: "var(--color-text-secondary)" }}>
               Memuat halaman...
+            </div>
+          </div>
+        )}
+
+        {renderError && (
+          <div className="absolute inset-0 flex items-center justify-center z-10 p-6">
+            <div className="text-center text-sm" style={{ color: "var(--color-danger)" }}>
+              {renderError}
             </div>
           </div>
         )}

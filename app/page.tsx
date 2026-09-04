@@ -2,6 +2,7 @@
 
 import React, { useState, useCallback, useEffect, useRef } from "react";
 import { RemovalArea, AppState, DetectionCandidate } from "@/lib/types";
+import { setupPdfJs } from "@/lib/pdf";
 import UploadZone from "@/components/UploadZone";
 import PdfViewer from "@/components/PdfViewer";
 import Toolbar from "@/components/Toolbar";
@@ -33,8 +34,7 @@ export default function Home() {
       const buffer = await file.arrayBuffer();
       setPdfData(buffer);
 
-      const pdfjsLib = await import("pdfjs-dist");
-      pdfjsLib.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
+      const pdfjsLib = await setupPdfJs();
       const loadingTask = pdfjsLib.getDocument({ data: new Uint8Array(buffer) });
       const pdf = await loadingTask.promise;
       setTotalPages(pdf.numPages);
