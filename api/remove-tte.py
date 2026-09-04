@@ -106,7 +106,7 @@ class handler(BaseHTTPRequestHandler):
                     except Exception:
                         pass
 
-            output_bytes = doc.tobytes(output="pdf")
+            output_bytes = doc.tobytes(garbage=4, deflate=True)
             doc.close()
 
             output_filename = "document_TTE_dihapus.pdf"
