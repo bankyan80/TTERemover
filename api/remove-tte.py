@@ -3,8 +3,23 @@ from http.server import BaseHTTPRequestHandler
 import pymupdf
 
 
+def rebuild_pdf(doc):
+    """Rebuild the PDF to strip incremental updates so widget annotations
+    become editable. Signature-appended (signed) PDFs put their TTE in an
+    incremental update; without rebuilding, the widget is read-only and the
+    QR stays visible."""
+    new_doc = pymupdf.open()
+    for i in range(len(doc)):
+        new_doc.insert_pdf(doc, from_page=i, to_page=i)
+    doc.close()
+    return new_doc
+
+
 def remove_areas(doc, areas):
-    """Cover TTE areas with white rectangles."""
+    """Detach/delete TTE widget annotations, then cover the area with white.
+    The QR is rendered through the widget's appearance stream (/AP), which is
+    drawn ABOVE the page content stream, so a plain white rectangle on the
+    content stream is NOT enough. The widget must be deleted first."""
     for area in areas:
         if not isinstance(area, dict):
             continue
@@ -22,7 +37,25 @@ def remove_areas(doc, areas):
         if w <= 0 or h <= 0:
             continue
 
-        rect = pymupdf.Rect(x, y, x + w, y + h)
+        # 1) Delete any widget annotation overlapping this area. This removes
+        #    the QR's appearance stream so it is no longer drawn on top.
+        target = pymupdf.Rect(x, y, x + w, y + h).round()
+        for widget in list(page.widgets()):
+            wrect = widget.rect.round()
+            if wrect.intersects(target) or wrect.contains(target) or target.contains(wrect):
+                try:
+                    page.delete_widget(widget)
+                except Exception:
+                    pass
+
+        # 2) Cover the area with white (redact + paint) in case any pixels
+        #    remain from the widget's appearance or from underlying content.
+        rect = pymupdf.Rect(x - 1, y - 1, x + w + 1, y + h + 1)
+        page.add_redact_annot(rect, fill=(1, 1, 1))
+        try:
+            page.apply_redactions(images=pymupdf.PDF_REDACT_IMAGE_REMOVE)
+        except Exception:
+            pass
         shape = page.new_shape()
         shape.draw_rect(rect)
         shape.finish(color=(1, 1, 1), fill=(1, 1, 1), width=0)
@@ -89,6 +122,8 @@ class handler(BaseHTTPRequestHandler):
             doc = pymupdf.open(stream=pdf_data, filetype="pdf")
 
             if areas:
+                # Rebuild first so signed/incremental-update files can be edited.
+                doc = rebuild_pdf(doc)
                 remove_areas(doc, areas)
 
             output_bytes = doc.tobytes(garbage=4, deflate=True)
