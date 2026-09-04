@@ -4,8 +4,7 @@
   "framework": "nextjs",
   "functions": {
     "api/remove-tte.py": {
-      "runtime": "@vercel/python@5",
-      "includeFiles": []
+      "runtime": "@vercel/python@5"
     }
   },
   "routes": [
