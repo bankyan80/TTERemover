@@ -1,19 +1,23 @@
-export interface TTEArea {
+export type RemovalArea = {
   id: string;
   page: number;
   x: number;
   y: number;
   width: number;
   height: number;
-  type: "detected" | "manual";
-  label: string;
+  confidence?: number;
+  source: "automatic" | "manual";
   selected: boolean;
-  confidence?: "high" | "medium" | "low";
-  confidenceScore?: number;
-  method?: "digital" | "visual" | "widget";
-  evidence?: string[];
-  candidateType?: string;
-}
+};
+
+export type AppState =
+  | "empty"
+  | "uploading"
+  | "analyzing"
+  | "ready"
+  | "processing"
+  | "success"
+  | "error";
 
 export interface PdfPageInfo {
   pageNumber: number;
@@ -22,16 +26,11 @@ export interface PdfPageInfo {
   rotation: number;
 }
 
-export interface DetectedSignature {
-  id: string;
-  page: number;
+export interface SelectionRect {
   x: number;
   y: number;
   width: number;
   height: number;
-  confidence: "high" | "medium" | "low";
-  method: "digital" | "visual" | "widget";
-  label: string;
 }
 
 export interface DetectionCandidate {
@@ -45,38 +44,4 @@ export interface DetectionCandidate {
   confidence: number;
   evidence: string[];
   selected: boolean;
-}
-
-export interface DetectionDebug {
-  page: number;
-  textBlocks: number;
-  sigTexts: number;
-  images: number;
-  qrCandidates: number;
-  drawings: number;
-  annotations: number;
-  hasSigWidget: boolean;
-}
-
-export interface ProcessResult {
-  success: boolean;
-  error?: string;
-  filename?: string;
-}
-
-export type AppState =
-  | "empty"
-  | "uploading"
-  | "analyzing"
-  | "ready"
-  | "selecting"
-  | "processing"
-  | "success"
-  | "error";
-
-export interface SelectionRect {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
 }

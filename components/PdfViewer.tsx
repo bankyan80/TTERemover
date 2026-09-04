@@ -1,15 +1,15 @@
 "use client";
 
 import React, { useEffect, useRef, useState, useCallback } from "react";
-import { PdfPageInfo, TTEArea } from "@/lib/types";
+import { PdfPageInfo, RemovalArea } from "@/lib/types";
 import DetectionOverlay from "./DetectionOverlay";
 import ManualSelection from "./ManualSelection";
 
 interface PdfViewerProps {
   pdfData: ArrayBuffer;
   totalPages: number;
-  areas: TTEArea[];
-  onAreasChange: (areas: TTEArea[]) => void;
+  areas: RemovalArea[];
+  onAreasChange: (areas: RemovalArea[]) => void;
   isSelectingManual: boolean;
   onCancelManual: () => void;
   currentPage: number;
@@ -106,11 +106,9 @@ export default function PdfViewer({
     }
   };
 
-  const currentScaleStr = Math.round(scale * 100) + "%";
-
   return (
     <div className="animate-fade-in flex flex-col gap-3">
-      {/* Zoom and nav controls */}
+      {/* Controls */}
       <div
         className="flex flex-wrap items-center justify-between gap-2 rounded-xl px-3 py-2"
         style={{ background: "var(--color-surface)", border: "1px solid var(--color-border)" }}
@@ -123,7 +121,7 @@ export default function PdfViewer({
           >
             −
           </button>
-          <span className="w-12 text-center text-sm font-medium">{currentScaleStr}</span>
+          <span className="w-12 text-center text-sm font-medium">{Math.round(scale * 100)}%</span>
           <button
             onClick={handleZoomIn}
             className="flex h-8 w-8 items-center justify-center rounded-lg font-bold transition hover:bg-black/5"
@@ -134,16 +132,10 @@ export default function PdfViewer({
         </div>
 
         <div className="flex items-center gap-1 text-sm">
-          <button
-            onClick={handleFitWidth}
-            className="rounded-lg px-2 py-1 transition hover:bg-black/5"
-          >
+          <button onClick={handleFitWidth} className="rounded-lg px-2 py-1 transition hover:bg-black/5">
             Fit Width
           </button>
-          <button
-            onClick={handleFitPage}
-            className="rounded-lg px-2 py-1 transition hover:bg-black/5"
-          >
+          <button onClick={handleFitPage} className="rounded-lg px-2 py-1 transition hover:bg-black/5">
             Fit Page
           </button>
         </div>
@@ -183,10 +175,7 @@ export default function PdfViewer({
       >
         {loading && (
           <div className="absolute inset-0 flex items-center justify-center z-10">
-            <div
-              className="animate-pulse text-sm"
-              style={{ color: "var(--color-text-secondary)" }}
-            >
+            <div className="animate-pulse text-sm" style={{ color: "var(--color-text-secondary)" }}>
               Memuat halaman...
             </div>
           </div>
@@ -207,9 +196,7 @@ export default function PdfViewer({
                 canvasDisplayWidth={canvasDisplayWidth}
                 onToggleSelect={(id) =>
                   onAreasChange(
-                    areas.map((a) =>
-                      a.id === id ? { ...a, selected: !a.selected } : a
-                    )
+                    areas.map((a) => (a.id === id ? { ...a, selected: !a.selected } : a))
                   )
                 }
               />
@@ -218,19 +205,15 @@ export default function PdfViewer({
                   pageInfo={pageInfo}
                   displayWidth={canvasDisplayWidth}
                   onComplete={(rect) => {
-                    const manualIdx = areas.filter(
-                      (a) => a.type === "manual"
-                    ).length;
                     const pdfScale = pageInfo.width / canvasDisplayWidth;
-                    const newArea: TTEArea = {
+                    const newArea: RemovalArea = {
                       id: `manual-${Date.now()}`,
                       page: currentPage,
                       x: rect.x * pdfScale,
                       y: rect.y * pdfScale,
                       width: rect.width * pdfScale,
                       height: rect.height * pdfScale,
-                      type: "manual",
-                      label: `Area Manual ${manualIdx + 1}`,
+                      source: "manual",
                       selected: true,
                     };
                     onAreasChange([...areas, newArea]);

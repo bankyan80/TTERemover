@@ -23,15 +23,11 @@ export default function ManualSelection({
   const getPos = (e: React.MouseEvent) => {
     if (!overlayRef.current) return { x: 0, y: 0 };
     const rect = overlayRef.current.getBoundingClientRect();
-    return {
-      x: e.clientX - rect.left,
-      y: e.clientY - rect.top,
-    };
+    return { x: e.clientX - rect.left, y: e.clientY - rect.top };
   };
 
   const onMouseDown = (e: React.MouseEvent) => {
-    const pos = getPos(e);
-    setStartPos(pos);
+    setStartPos(getPos(e));
     setCurrentRect(null);
   };
 
@@ -49,15 +45,12 @@ export default function ManualSelection({
   );
 
   const onMouseUp = () => {
-    if (currentRect && currentRect.width > 10 && currentRect.height > 10) {
-      onComplete(currentRect);
-    }
     setStartPos(null);
-    setCurrentRect(null);
   };
 
   const pdfScale = displayWidth / pageInfo.width;
   const displayHeight = pageInfo.height * pdfScale;
+  const hasValidRect = currentRect && currentRect.width > 10 && currentRect.height > 10;
 
   return (
     <>
@@ -96,10 +89,21 @@ export default function ManualSelection({
           </div>
         )}
       </div>
-      {/* Cancel button outside overlay to avoid z-index/positioning issues */}
-      <div
-        className="fixed bottom-5 right-5 z-50 flex gap-2"
-      >
+
+      {/* Buttons */}
+      <div className="fixed bottom-5 right-5 z-50 flex gap-2">
+        {hasValidRect && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onComplete(currentRect!);
+            }}
+            className="rounded-lg px-4 py-2 text-sm font-medium text-white shadow-lg transition hover:opacity-90"
+            style={{ background: "var(--color-success)" }}
+          >
+            Konfirmasi
+          </button>
+        )}
         <button
           onClick={(e) => {
             e.stopPropagation();

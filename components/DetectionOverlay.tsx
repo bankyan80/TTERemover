@@ -1,24 +1,13 @@
 "use client";
 
 import React from "react";
-import { TTEArea, PdfPageInfo } from "@/lib/types";
+import { RemovalArea, PdfPageInfo } from "@/lib/types";
 
 interface DetectionOverlayProps {
-  areas: TTEArea[];
+  areas: RemovalArea[];
   pageInfo: PdfPageInfo;
   canvasDisplayWidth: number;
   onToggleSelect: (id: string) => void;
-}
-
-function confidenceColor(confidence?: "high" | "medium" | "low"): string {
-  if (confidence === "high") return "var(--color-success)";
-  if (confidence === "medium") return "var(--color-warning)";
-  return "var(--color-danger)";
-}
-
-function confidencePercent(score?: number): string {
-  if (score == null) return "";
-  return `${Math.round(score * 100)}%`;
 }
 
 export default function DetectionOverlay({
@@ -39,40 +28,33 @@ export default function DetectionOverlay({
         const w = area.width * scale;
         const h = area.height * scale;
 
-        const color = confidenceColor(area.confidence);
-        const pct = confidencePercent(area.confidenceScore);
-
-        const style: React.CSSProperties = {
-          position: "absolute",
-          left: `${left}px`,
-          top: `${top}px`,
-          width: `${w}px`,
-          height: `${h}px`,
-          border: area.selected
-            ? `2px solid ${color}`
-            : "2px dashed var(--color-danger)",
-          background: area.selected
-            ? `color-mix(in srgb, ${color} 15%, transparent)`
-            : "color-mix(in srgb, var(--color-danger) 12%, transparent)",
-          cursor: "pointer",
-          borderRadius: "4px",
-          transition: "all 0.15s ease",
-          zIndex: 10,
-        };
-
-        const evidenceText = area.evidence?.length
-          ? area.evidence.join(" • ")
-          : area.label;
+        const color = area.selected ? "var(--color-primary)" : "var(--color-danger)";
+        const pct = area.confidence != null ? `${Math.round(area.confidence * 100)}%` : "";
 
         return (
           <div
             key={area.id}
-            style={style}
+            style={{
+              position: "absolute",
+              left: `${left}px`,
+              top: `${top}px`,
+              width: `${w}px`,
+              height: `${h}px`,
+              border: area.selected
+                ? `2px solid ${color}`
+                : "2px dashed var(--color-danger)",
+              background: area.selected
+                ? `color-mix(in srgb, ${color} 15%, transparent)`
+                : "color-mix(in srgb, var(--color-danger) 12%, transparent)",
+              cursor: "pointer",
+              borderRadius: "4px",
+              transition: "all 0.15s ease",
+              zIndex: 10,
+            }}
             onClick={() => onToggleSelect(area.id)}
-            title={`${area.label}${pct ? ` (${pct})` : ""} — ${evidenceText}`}
+            title={`Halaman ${area.page} — ${pct || "Manual"}`}
             role="checkbox"
             aria-checked={area.selected}
-            aria-label={`${area.label} ${pct}`}
             tabIndex={0}
             onKeyDown={(e) => {
               if (e.key === "Enter" || e.key === " ") {
@@ -86,7 +68,7 @@ export default function DetectionOverlay({
               style={{ background: color }}
             >
               {area.selected ? "✓ " : ""}
-              {area.label}
+              Hal. {area.page}
               {pct && <span className="opacity-80">({pct})</span>}
             </div>
           </div>
