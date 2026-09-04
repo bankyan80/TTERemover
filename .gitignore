@@ -1,0 +1,14 @@
+node_modules/
+.next/
+.env
+.env.local
+.env.production.local
+__pycache__/
+*.pyc
+.vercel/
+dist/
+*.egg-info/
+.v/
+.DS_Store
+Thumbs.db
+.ai/
