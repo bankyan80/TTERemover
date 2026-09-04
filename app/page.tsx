@@ -1,29 +1,13 @@
 "use client";
 
-import React, { useState, useCallback } from "react";
-import { TTEArea, AppState } from "@/lib/types";
+import React, { useState, useCallback, useEffect, useRef } from "react";
+import { TTEArea, AppState, DetectionCandidate, DetectionDebug } from "@/lib/types";
 import UploadZone from "@/components/UploadZone";
 import PdfViewer from "@/components/PdfViewer";
 import Toolbar from "@/components/Toolbar";
 import ProcessingModal from "@/components/ProcessingModal";
 import ResultPanel from "@/components/ResultPanel";
 import BeforeAfterCompare from "@/components/BeforeAfterCompare";
-
-function getAnnotRect(annot: any): { left: number; top: number; width: number; height: number } | null {
-  const r = annot?.rect;
-  if (!r) return null;
-  if (Array.isArray(r)) {
-    return { left: r[0], top: r[1], width: r[2] - r[0], height: r[3] - r[1] };
-  }
-  if (typeof r === "object") {
-    const left = r.left ?? r.x ?? 0;
-    const top = r.top ?? r.y ?? 0;
-    const width = r.width ?? (r.right ? r.right - left : 0);
-    const height = r.height ?? (r.bottom ? r.bottom - top : 0);
-    return { left, top, width, height };
-  }
-  return null;
-}
 
 export default function Home() {
   const [appState, setAppState] = useState<AppState>("empty");
@@ -39,6 +23,9 @@ export default function Home() {
   const [errorMessage, setErrorMessage] = useState("");
   const [undoStack, setUndoStack] = useState<TTEArea[][]>([]);
   const [redoStack, setRedoStack] = useState<TTEArea[][]>([]);
+  const [detectionDebug, setDetectionDebug] = useState<DetectionDebug[]>([]);
+  const [pdfPageSizes, setPdfPageSizes] = useState<{ w: number; h: number }[]>([]);
+  const detectionRanRef = useRef(false);
 
   const pushUndo = useCallback((currentAreas: TTEArea[]) => {
     setUndoStack((prev) => [...prev.slice(-20), currentAreas]);
@@ -91,6 +78,7 @@ export default function Home() {
   const detectSignatures = useCallback(async () => {
     if (!pdfData) return;
     setAppState("analyzing");
+    setDetectionDebug([]);
 
     try {
       const pdfjsLib = await import("pdfjs-dist");
@@ -98,123 +86,89 @@ export default function Home() {
       const loadingTask = pdfjsLib.getDocument({ data: new Uint8Array(pdfData) });
       const pdf = await loadingTask.promise;
 
-      const detected: TTEArea[] = [];
-      const tteKeywords = [
-        "tanda tangan", "ditandatangani", "elektronik",
-        "digital signature", "signature", "tte", "qr",
-      ];
-
+      const pageSizes: { w: number; h: number }[] = [];
       for (let i = 1; i <= pdf.numPages; i++) {
         const page = await pdf.getPage(i);
         const vp = page.getViewport({ scale: 1 });
-
-        // Method 1: Check annotations for signature widgets
-        try {
-          const annots = await page.getAnnotations();
-          for (const annot of annots) {
-            const rect = getAnnotRect(annot);
-            if (!rect) continue;
-
-            const isSigWidget =
-              annot.subtype === "Widget" && (annot as any).fieldType === "Sig";
-
-            if (isSigWidget) {
-              detected.push({
-                id: `widget-${Date.now()}-${i}-${detected.length}`,
-                page: i,
-                x: Math.max(0, rect.left - 5),
-                y: Math.max(0, rect.top - 5),
-                width: Math.min(rect.width + 10, vp.width),
-                height: Math.min(rect.height + 10, vp.height),
-                type: "detected",
-                confidence: "high",
-                method: "widget",
-                label: "Signature Widget",
-                selected: true,
-              });
-            }
-          }
-        } catch {
-          // skip annotation check
-        }
-
-        // Method 2: Text-based heuristic detection
-        try {
-          const textContent = await page.getTextContent();
-
-          for (const item of textContent.items) {
-            if (!("str" in item)) continue;
-            const text = (item as { str: string }).str.toLowerCase().trim();
-            if (!text) continue;
-
-            const isTTERelated = tteKeywords.some((kw) => text.includes(kw));
-            if (!isTTERelated) continue;
-
-            const tx = (item as any).transform;
-            if (!tx || !Array.isArray(tx)) continue;
-
-            const textX = tx[4] || 0;
-            const textY = tx[5] || 0;
-
-            // Look for nearby annotations
-            try {
-              const annots2 = await page.getAnnotations();
-              for (const annot of annots2) {
-                const rect = getAnnotRect(annot);
-                if (!rect) continue;
-
-                const distX = Math.abs(rect.left - textX);
-                const distY = Math.abs(rect.top - textY);
-
-                if (distX < 200 && distY < 200) {
-                  detected.push({
-                    id: `visual-${Date.now()}-${i}-${detected.length}`,
-                    page: i,
-                    x: Math.max(0, rect.left - 10),
-                    y: Math.max(0, rect.top - 10),
-                    width: Math.min(rect.width + 20, vp.width - rect.left),
-                    height: Math.min(rect.height + 20, vp.height - rect.top),
-                    type: "detected",
-                    confidence: "medium",
-                    method: "visual",
-                    label: "Kemungkinan TTE",
-                    selected: true,
-                  });
-                }
-              }
-            } catch {
-              // skip
-            }
-          }
-        } catch {
-          // skip text check
-        }
+        pageSizes.push({ w: vp.width, h: vp.height });
       }
-
+      setPdfPageSizes(pageSizes);
       pdf.destroy();
 
-      const unique = deduplicateAreas(detected);
-      setAreas(unique);
+      const formData = new FormData();
+      const blob = new Blob([pdfData], { type: "application/pdf" });
+      formData.append("pdf", blob, fileName || "document.pdf");
+
+      let data: { success: boolean; pages: number; candidates: DetectionCandidate[]; debug: DetectionDebug[]; error?: string };
+
+      try {
+        const res = await fetch("/api/detect-tte", { method: "POST", body: formData });
+        if (!res.ok) throw new Error(`Detection API returned ${res.status}`);
+        data = await res.json();
+      } catch {
+        data = { success: true, pages: pdf.numPages, candidates: [], debug: [] };
+      }
+
+      if (!data.success) {
+        throw new Error(data.error || "Detection failed");
+      }
+
+      setDetectionDebug(data.debug || []);
+
+      const detected: TTEArea[] = data.candidates.map((c) => {
+        const confidenceLevel: "high" | "medium" | "low" =
+          c.confidence >= 0.75 ? "high" : c.confidence >= 0.50 ? "medium" : "low";
+
+        const method: "digital" | "visual" | "widget" =
+          c.type === "digital-signature" ? "digital" :
+          c.type === "qr" || c.type === "visual-signature" ? "visual" : "widget";
+
+        const label =
+          c.type === "digital-signature" ? "Signature Widget" :
+          c.type === "qr" ? "QR Code (TTE)" :
+          c.type === "barcode" ? "Barcode (TTE)" :
+          c.type === "combined" ? "TTE (QR + Teks)" :
+          c.type === "text-signature" ? "Teks TTE" :
+          "Kemungkinan TTE";
+
+        return {
+          id: c.id,
+          page: c.page,
+          x: c.x0,
+          y: c.y0,
+          width: c.x1 - c.x0,
+          height: c.y1 - c.y0,
+          type: "detected" as const,
+          label,
+          selected: c.selected,
+          confidence: confidenceLevel,
+          confidenceScore: c.confidence,
+          method,
+          evidence: c.evidence,
+          candidateType: c.type,
+        };
+      });
+
+      setAreas(detected);
       setAppState("ready");
     } catch (err) {
       console.error("Detection error", err);
       setAppState("ready");
     }
-  }, [pdfData]);
+  }, [pdfData, fileName]);
 
-  const deduplicateAreas = (input: TTEArea[]): TTEArea[] => {
-    const result: TTEArea[] = [];
-    const used = new Set<string>();
-
-    for (const area of input) {
-      const key = `${area.page}-${Math.round(area.x)}-${Math.round(area.y)}-${Math.round(area.width)}-${Math.round(area.height)}`;
-      if (!used.has(key)) {
-        used.add(key);
-        result.push(area);
-      }
+  useEffect(() => {
+    if (appState === "ready" && pdfData && !detectionRanRef.current && areas.length === 0) {
+      detectionRanRef.current = true;
+      detectSignatures();
     }
-    return result;
-  };
+  }, [appState, pdfData, areas.length, detectSignatures]);
+
+  useEffect(() => {
+    if (appState === "empty") {
+      detectionRanRef.current = false;
+    }
+  }, [appState]);
 
   const handleProcess = async (areasToProcess: TTEArea[]) => {
     if (!pdfData) return;
@@ -310,6 +264,8 @@ export default function Home() {
     setErrorMessage("");
     setUndoStack([]);
     setRedoStack([]);
+    setDetectionDebug([]);
+    setPdfPageSizes([]);
     setAppState("empty");
   };
 
@@ -442,6 +398,74 @@ export default function Home() {
                   Tidak ditemukan TTE otomatis. Gunakan &quot;+ Pilih Area&quot; untuk menentukan
                   area yang ingin dihapus secara manual.
                 </div>
+              )}
+
+              {areas.length > 0 && appState === "ready" && (
+                <div
+                  className="animate-fade-in rounded-xl p-4"
+                  style={{
+                    background: "color-mix(in srgb, var(--color-success) 8%, transparent)",
+                    border: "1px solid color-mix(in srgb, var(--color-success) 20%, transparent)",
+                  }}
+                >
+                  <div className="flex items-start gap-3">
+                    <div
+                      className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white"
+                      style={{ background: "var(--color-success)" }}
+                    >
+                      ✓
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-sm font-semibold" style={{ color: "var(--color-success)" }}>
+                        TTE terdeteksi
+                      </p>
+                      <p className="mt-1 text-xs" style={{ color: "var(--color-text-secondary)" }}>
+                        {areas.length} TTE ditemukan pada{" "}
+                        {[...new Set(areas.map((a) => a.page))].sort((a, b) => a - b).map((p) => `halaman ${p}`).join(", ")}.
+                        {areas.length > 1 && ` (${areas.filter((a) => a.selected).length} dipilih)`}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Debug panel */}
+              {detectionDebug.length > 0 && process.env.NEXT_PUBLIC_DEBUG_TTE === "true" && (
+                <details className="animate-fade-in rounded-xl text-xs" style={{ border: "1px solid var(--color-border)" }}>
+                  <summary className="cursor-pointer px-4 py-2 font-medium" style={{ color: "var(--color-text-secondary)" }}>
+                    Detection Debug
+                  </summary>
+                  <div className="overflow-x-auto px-4 pb-3">
+                    <table className="w-full text-left" style={{ color: "var(--color-text-secondary)" }}>
+                      <thead>
+                        <tr style={{ borderBottom: "1px solid var(--color-border)" }}>
+                          <th className="py-1 pr-3">Page</th>
+                          <th className="py-1 pr-3">Text</th>
+                          <th className="py-1 pr-3">Sig Text</th>
+                          <th className="py-1 pr-3">Images</th>
+                          <th className="py-1 pr-3">QR</th>
+                          <th className="py-1 pr-3">Draw</th>
+                          <th className="py-1 pr-3">Annot</th>
+                          <th className="py-1 pr-3">SigW</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {detectionDebug.map((d) => (
+                          <tr key={d.page} style={{ borderBottom: "1px solid var(--color-border)" }}>
+                            <td className="py-1 pr-3 font-medium">{d.page}</td>
+                            <td className="py-1 pr-3">{d.textBlocks}</td>
+                            <td className="py-1 pr-3">{d.sigTexts}</td>
+                            <td className="py-1 pr-3">{d.images}</td>
+                            <td className="py-1 pr-3">{d.qrCandidates}</td>
+                            <td className="py-1 pr-3">{d.drawings}</td>
+                            <td className="py-1 pr-3">{d.annotations}</td>
+                            <td className="py-1 pr-3">{d.hasSigWidget ? "✓" : "—"}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </details>
               )}
 
               <div className="flex flex-col gap-4 lg:flex-row">

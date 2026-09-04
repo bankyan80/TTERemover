@@ -9,7 +9,10 @@ export interface TTEArea {
   label: string;
   selected: boolean;
   confidence?: "high" | "medium" | "low";
+  confidenceScore?: number;
   method?: "digital" | "visual" | "widget";
+  evidence?: string[];
+  candidateType?: string;
 }
 
 export interface PdfPageInfo {
@@ -29,6 +32,30 @@ export interface DetectedSignature {
   confidence: "high" | "medium" | "low";
   method: "digital" | "visual" | "widget";
   label: string;
+}
+
+export interface DetectionCandidate {
+  id: string;
+  page: number;
+  x0: number;
+  y0: number;
+  x1: number;
+  y1: number;
+  type: string;
+  confidence: number;
+  evidence: string[];
+  selected: boolean;
+}
+
+export interface DetectionDebug {
+  page: number;
+  textBlocks: number;
+  sigTexts: number;
+  images: number;
+  qrCandidates: number;
+  drawings: number;
+  annotations: number;
+  hasSigWidget: boolean;
 }
 
 export interface ProcessResult {

@@ -113,37 +113,51 @@ export default function Toolbar({
           <p className="text-xs font-semibold uppercase tracking-wider" style={{ color: "var(--color-text-secondary)" }}>
             Area TTE ({areas.length})
           </p>
-          {areas.map((area) => (
-            <div
-              key={area.id}
-              className="flex items-center justify-between rounded-lg px-3 py-2 text-sm transition"
-              style={{
-                background: area.selected
-                  ? "color-mix(in srgb, var(--color-success) 8%, transparent)"
-                  : "transparent",
-              }}
-            >
-              <label className="flex cursor-pointer items-center gap-2">
-                <input
-                  type="checkbox"
-                  checked={area.selected}
-                  onChange={() => onToggleSelect(area.id)}
-                  className="accent-[var(--color-success)]"
-                />
-                <span>
-                  Halaman {area.page} — {area.label}
-                </span>
-              </label>
-              <button
-                onClick={() => onRemoveArea(area.id)}
-                className="text-xs opacity-50 transition hover:opacity-100"
-                aria-label={`Hapus ${area.label}`}
-                style={{ color: "var(--color-danger)" }}
+          {areas.map((area) => {
+            const pct = area.confidenceScore != null ? `${Math.round(area.confidenceScore * 100)}%` : null;
+            const confColor =
+              area.confidence === "high" ? "var(--color-success)" :
+              area.confidence === "medium" ? "var(--color-warning)" :
+              "var(--color-danger)";
+            return (
+              <div
+                key={area.id}
+                className="flex items-center justify-between rounded-lg px-3 py-2 text-sm transition"
+                style={{
+                  background: area.selected
+                    ? "color-mix(in srgb, var(--color-success) 8%, transparent)"
+                    : "transparent",
+                }}
               >
-                ✕
-              </button>
-            </div>
-          ))}
+                <label className="flex cursor-pointer items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={area.selected}
+                    onChange={() => onToggleSelect(area.id)}
+                    className="accent-[var(--color-success)]"
+                  />
+                  <div className="flex flex-col">
+                    <span>
+                      Halaman {area.page} — {area.label}
+                    </span>
+                    {pct && (
+                      <span className="text-[10px]" style={{ color: confColor }}>
+                        Confidence: {pct}
+                      </span>
+                    )}
+                  </div>
+                </label>
+                <button
+                  onClick={() => onRemoveArea(area.id)}
+                  className="text-xs opacity-50 transition hover:opacity-100"
+                  aria-label={`Hapus ${area.label}`}
+                  style={{ color: "var(--color-danger)" }}
+                >
+                  ✕
+                </button>
+              </div>
+            );
+          })}
         </div>
       )}
 

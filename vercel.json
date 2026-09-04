@@ -4,6 +4,11 @@
   "framework": "nextjs",
   "routes": [
     {
+      "src": "/api/detect-tte",
+      "methods": ["POST"],
+      "dest": "/api/detect-tte.py"
+    },
+    {
       "src": "/api/remove-tte",
       "methods": ["POST"],
       "dest": "/api/remove-tte.py"
