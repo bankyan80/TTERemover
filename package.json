@@ -6,7 +6,10 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "test:detection": "python tests/test_detection.py",
+    "test:removal": "python tests/test_removal.py",
+    "test": "python tests/test_detection.py && python tests/test_removal.py"
   },
   "dependencies": {
     "next": "^15.3.4",
